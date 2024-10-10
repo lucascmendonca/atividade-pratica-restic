@@ -1,60 +1,62 @@
-from typing import Any
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse
-from rest_framework.renderers import JSONRenderer
-from rest_framework.parsers import JSONParser
-from rest_framework import status
-from .models import Livro
-from .serializers import LivroSerializer
+from rest_framework.response import Response
+from rest_framework.reverse import reverse
+from .models import Livro, Autor, Categoria
+from .serializers import LivroSerializer, AutorSerializer, CategoriaSerializer
+from rest_framework import generics
+from .filters import LivroFilter
 
-# Objeto para renderizar as response em JSON
-class JSONResponse(HttpResponse):
-    def __init__(self, data, **kwargs):
-        content = JSONRenderer().render(data)
-        kwargs['content_type'] = 'application/json'
-        super(JSONResponse, self).__init__(content, **kwargs)
 
-@csrf_exempt
-def livro_list_create(request):
-    
-    #Ajustei os blocos condicionais para uma leitura de if/elif mais familiar para mim
-    if request.method == 'GET':
-        livros = Livro.objects.all()
-        serializer = LivroSerializer(livros, many = True)
-        return JSONResponse(serializer.data)
-    
-    elif request.method == 'POST':
-        #Aplicando um Parse de json para que seja possível a leitura das informações
-        livro_data = JSONParser().parse(request)
-        serializer = LivroSerializer(data = livro_data)
-        if serializer.is_valid():
-            serializer.save()
-            return JSONResponse(serializer.data, status = status.HTTP_201_CREATED)
-        return JSONResponse(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
-    # Coloquei um eles para caso a request do usuário não de em nada
-    else:
-        return JSONResponse(status = status.HTTP_406_NOT_ACCEPTABLE)
+class ApiRoot(generics.GenericAPIView):
+    name = "api-root"
 
-@csrf_exempt
-def livro_detail(request,pk):
-    
-    livro = Livro.objects.get(pk=pk)
+    def get(self, request, *args, **kwargs):
+        return Response(
+            {
+                "livros": reverse(LivroList.name, request=request),
+                "categorias": reverse(CategoriaList.name, request=request),
+                "autores": reverse(AutorList.name, request=request),
+            }
+        )
 
-    if request.method == 'GET':
-        serializer = LivroSerializer(livro)
-        return JSONResponse(serializer.data)
-    
-    elif request.method == 'PUT':
-        livro_data = JSONParser().parse(request)
-        serializer = LivroSerializer(livro, data = livro_data)
-        if serializer.is_valid():
-            serializer.save()
-            return JSONResponse(serializer.data)
-        return JSONResponse(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
-    
-    elif request.method == 'DELETE':
-        livro.delete()
-        return JSONResponse(status = status.HTTP_204_NO_CONTENT)
-    
-    else:
-        return JSONResponse(status = status.HTTP_406_NOT_ACCEPTABLE)
+
+class LivroList(generics.ListCreateAPIView):
+    queryset = Livro.objects.all()
+    serializer_class = LivroSerializer
+    name = "livro-list"
+    filterset_class = LivroFilter
+    search_fields = ("^titulo",)
+    ordering_fields = ["titulo", "autor", "categoria", "publicado_em"]
+
+class LivroDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Livro.objects.all()
+    serializer_class = LivroSerializer
+    name = "livro-detail"
+
+
+class CategoriaList(generics.ListCreateAPIView):
+    queryset = Categoria.objects.all()
+    serializer_class = CategoriaSerializer
+    name = "categoria-list"
+    search_fields = ("^nome",)
+    ordering_fields = ("nome",)
+
+
+class CategoriaDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Categoria.objects.all()
+    serializer_class = CategoriaSerializer
+    name = "categoria-detail"
+
+
+class AutorList(generics.ListCreateAPIView):
+    queryset = Autor.objects.all()
+    serializer_class = AutorSerializer
+    name = "autor-list"
+    search_fields = ("^nome",)
+    ordering_fields = ("nome",)
+
+
+class AutorDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Autor.objects.all()
+    serializer_class = AutorSerializer
+    name = "autor-detail"
